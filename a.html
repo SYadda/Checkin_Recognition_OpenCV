@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>签到人数识别</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: flex-start;
+            align-items: center;
+            flex-direction: column;
+            margin: 0;
+        }
+        
+        #preview {
+            display: none;
+            transition: transform 0.3s ease;
+            width: 30%;
+            height: 30%;
+        }
+
+        #imageInput {
+            width: 150px;
+        }
+    </style>
+    <script src="opencv.js"></script>
+</head>
+
+<body>
+    <h1>签到人数识别</h1>
+    <input type="file" id="imageInput" accept="image/*"></input> 
+    <br> 
+    <button id="uploadButton">确认</button>
+    <br>
+    <div id="result" style="font-size: 40px;">已签到人数: </div>
+    <br>
+    <img id="preview" alt="预览图片">
+
+    <script>
+        document.getElementById('imageInput').addEventListener('change', function (event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    const img = document.getElementById('preview');
+                    img.src = e.target.result;
+                    img.style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        document.getElementById('uploadButton').addEventListener('click', function () {
+            const largeImage = new Image();
+            largeImage.src = document.getElementById('preview').src;
+
+            const templateImage = new Image();
+            templateImage.src = '0.jpg';
+
+            largeImage.onload = function () {
+                templateImage.onload = function () {
+                    processImage(largeImage, templateImage);
+                };
+            };
+        });
+
+        function processImage(largeImage, templateImage) {
+            const large = cv.imread(largeImage);
+            const template = cv.imread(templateImage);
+
+            // 获取大图片的宽度和高度
+            let largeWidth = large.cols;
+            let largeHeight = large.rows;
+
+            // 获取模板图片的宽度和高度
+            let w = template.cols;
+            let h = template.rows;
+
+            // 使用模板匹配
+            let result = new cv.Mat();
+            cv.matchTemplate(large, template, result, cv.TM_CCOEFF_NORMED);
+
+            // 设置匹配阈值
+            let threshold = 0.8;
+            let loc = [];
+            for (let i = 0; i < result.rows; i++) {
+                for (let j = 0; j < result.cols; j++) {
+                    if (result.floatAt(i, j) >= threshold) {
+                        loc.push([j, i]);
+                    }
+                }
+            }
+
+            // 过滤匹配结果，确保每个匹配的图形与之前匹配的图形至少间隔50像素
+            let filteredPoints = [];
+            for (let pt of loc) {
+                if (filteredPoints.every(fp => Math.hypot(pt[0] - fp[0], pt[1] - fp[1]) >= 50)) {
+                    filteredPoints.push(pt);
+                }
+            }
+
+            // 统计匹配的图案数量
+            let count = filteredPoints.length;
+
+            // 将匹配结果显示在文本框中
+            document.getElementById('result').textContent = `已签到人数: ${count} 人`;
+        }
+    </script>
+</body>
+
+</html>
